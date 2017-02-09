@@ -1,7 +1,8 @@
 # ©2017 YUICHIRO NAKADA
 
 CC = clang
-CFLAGS = -Wall -Os -lm
+CFLAGS = -Wall -Os
+LDFLAGS = -lm
 
 PROGRAM = cam2mpg
 OBJS = cam2mpg.o
@@ -9,7 +10,7 @@ OBJS = cam2mpg.o
 .SUFFIXES: .c .o
 
 $(PROGRAM): $(OBJS)
-	$(CC) -o $(PROGRAM) $(CFLAGS) $^
+	$(CC) -o $(PROGRAM) $(CFLAGS) $(LDFLAGS) $^
 
 .c.o:
 	$(CC) $(CFLAGS) -c $<
