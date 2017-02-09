@@ -7,12 +7,7 @@
 #include "jo_mpeg.h"
 #include "v4l2.h"
 
-// global settings
-static unsigned int width = 640;
-static unsigned int height = 480;
-static unsigned char jpegQuality = 70;
-static char* jpegFilename = NULL;
-static char* deviceName = "/dev/video0";
+static char* outFilename = NULL;
 
 void mainLoop()
 {
@@ -21,7 +16,7 @@ void mainLoop()
 
 		static int count = 0;
 		printf("%d\n", count++);
-		FILE *fp = fopen(jpegFilename, "ab");
+		FILE *fp = fopen(outFilename, "ab");
 		jo_write_mpeg(fp, v4l2.rgb, v4l2.width, v4l2.height, 30);  // frame 0
 		fclose(fp);
 
@@ -36,8 +31,7 @@ void usage(FILE* fp, int argc, char** argv)
 		"Options:\n"
 		"-d | --device name   Video device name [/dev/video0]\n"
 		"-h | --help          Print this message\n"
-		"-o | --output        JPEG output filename\n"
-		"-q | --quality       JPEG quality (0-100)\n"
+		"-o | --output        Output filename\n"
 		"-m | --mmap          Use memory mapped buffers\n"
 		"-r | --read          Use read() calls\n"
 		"-u | --userptr       Use application allocated buffers\n"
@@ -47,14 +41,13 @@ void usage(FILE* fp, int argc, char** argv)
 		argv[0]);
 }
 
-static const char short_options[] = "d:ho:q:mruW:H:";
+static const char short_options[] = "d:ho:mruW:H:";
 
 static const struct option
 	long_options[] = {
 	{ "device",     required_argument,      NULL,           'd' },
 	{ "help",       no_argument,            NULL,           'h' },
 	{ "output",     required_argument,      NULL,           'o' },
-	{ "quality",    required_argument,      NULL,           'q' },
 	{ "mmap",       no_argument,            NULL,           'm' },
 	{ "read",       no_argument,            NULL,           'r' },
 	{ "userptr",    no_argument,            NULL,           'u' },
@@ -79,7 +72,7 @@ int main(int argc, char *argv[])
 			break;
 
 		case 'd':
-			deviceName = optarg;
+			v4l2.deviceName = optarg;
 			break;
 
 		case 'h':
@@ -89,17 +82,12 @@ int main(int argc, char *argv[])
 
 		case 'o':
 			// set jpeg filename
-			jpegFilename = optarg;
-			break;
-
-		case 'q':
-			// set jpeg filename
-			jpegQuality = atoi(optarg);
+			outFilename = optarg;
 			break;
 
 		case 'm':
 #ifdef IO_MMAP
-			io = IO_METHOD_MMAP;
+			v4l2.io = IO_METHOD_MMAP;
 #else
 			fprintf(stderr, "You didn't compile for mmap support.\n");
 			exit(EXIT_FAILURE);
@@ -108,7 +96,7 @@ int main(int argc, char *argv[])
 
 		case 'r':
 #ifdef IO_READ
-			io = IO_METHOD_READ;
+			v4l2.io = IO_METHOD_READ;
 #else
 			fprintf(stderr, "You didn't compile for read support.\n");
 			exit(EXIT_FAILURE);
@@ -117,7 +105,7 @@ int main(int argc, char *argv[])
 
 		case 'u':
 #ifdef IO_USERPTR
-			io = IO_METHOD_USERPTR;
+			v4l2.io = IO_METHOD_USERPTR;
 #else
 			fprintf(stderr, "You didn't compile for userptr support.\n");
 			exit(EXIT_FAILURE);
@@ -126,12 +114,12 @@ int main(int argc, char *argv[])
 
 		case 'W':
 			// set width
-			width = atoi(optarg);
+			v4l2.width = atoi(optarg);
 			break;
 
 		case 'H':
 			// set height
-			height = atoi(optarg);
+			v4l2.height = atoi(optarg);
 			break;
 
 		default:
@@ -141,7 +129,7 @@ int main(int argc, char *argv[])
 	}
 
 	// check for need parameters
-	if (!jpegFilename) {
+	if (!outFilename) {
 		fprintf(stderr, "You have to specify JPEG output filename!\n\n");
 		usage(stdout, argc, argv);
 		exit(EXIT_FAILURE);
