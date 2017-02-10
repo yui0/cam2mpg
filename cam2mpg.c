@@ -17,7 +17,7 @@ void mainLoop()
 		static int count = 0;
 		printf("%d\n", count++);
 		FILE *fp = fopen(outFilename, "ab");
-		jo_write_mpeg(fp, v4l2.rgb, v4l2.width, v4l2.height, 30);  // frame 0
+		jo_write_mpeg(fp, v4l2.rgb, v4l2.width, v4l2.height, 10);  // frame 0
 		fclose(fp);
 
 		nanosleep((const struct timespec[]){{ 0, 100000000L }}, NULL);	// sleeps for half a sec

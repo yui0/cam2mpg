@@ -6,7 +6,7 @@
  *
  * Basic usage:
  *	char *frame = new char[width*height*4]; // 4 component. RGBX format, where X is unused
- *	FILE *fp = fopen("foo.mpg", "wb");
+ *	FILE *fp = fopen("foo.mem", "wb");
  *	jo_write_mpeg(fp, frame, width, height, 60);  // frame 0
  *	jo_write_mpeg(fp, frame, width, height, 60);  // frame 1
  *	jo_write_mpeg(fp, frame, width, height, 60);  // frame 2
@@ -24,20 +24,6 @@
  *	http://dvd.sourceforge.net/dvdinfo/mpeghdrs.html
  *	http://www.cs.cornell.edu/dali/api/mpegvideo-c.html
  * */
-
-#ifndef JO_INCLUDE_MPEG_H
-#define JO_INCLUDE_MPEG_H
-
-#include <stdio.h>
-
-// To get a header file for this, either cut and paste the header,
-// or create jo_mpeg.h, #define JO_MPEG_HEADER_FILE_ONLY, and
-// then include jo_mpeg.c from it.
-
-// Returns false on failure
-extern void jo_write_mpeg(FILE *fp, const unsigned char *rgbx, int width, int height, int fps);
-
-#endif // JO_INCLUDE_MPEG_H
 
 #ifndef JO_MPEG_HEADER_FILE_ONLY
 
@@ -70,9 +56,58 @@ static const float s_jo_quantTbl[64] = {
 static const unsigned char s_jo_ZigZag[] = { 0,1,5,6,14,15,27,28,2,4,7,13,16,26,29,42,3,8,12,17,25,30,41,43,9,11,18,24,31,40,44,53,10,19,23,32,39,45,52,54,20,22,33,38,46,51,55,60,21,34,37,47,50,56,59,61,35,36,48,49,57,58,62,63 };
 
 typedef struct {
-	FILE *fp;
+	unsigned char **p;
 	int buf, cnt;
 } jo_bits_t;
+
+// http://esr.ibiblio.org/?p=5095
+//#include <stdint.h>
+//typedef short	uint4_t;
+//#define IS_BIG_ENDIAN (*(uint16_t *)"\0\xff" < 0x100)
+//#define put4b(p, m)	{ *((uint4_t*)p) = *((uint4_t*)s); p += 4; }
+inline void put1b(unsigned char c, unsigned char **p)
+{
+	**p = c;
+	(*p)++;
+}
+inline void put4b(char *c, unsigned char **p)
+{
+//	uint4_t m = *((uint4_t*)c);
+//	*((uint4_t*)*p) = m;
+//	(*p) += 4;
+
+	**p = *c++;
+	(*p)++;
+	**p = *c++;
+	(*p)++;
+	**p = *c++;
+	(*p)++;
+	**p = *c++;
+	(*p)++;
+}
+inline void put8b(char *c, unsigned char **p)
+{
+//	uint8_t m = *((uint8_t*)c);
+//	*((uint8_t*)*p) = m;
+//	(*p) += 8;
+
+	**p = *c++;
+	(*p)++;
+	**p = *c++;
+	(*p)++;
+	**p = *c++;
+	(*p)++;
+	**p = *c++;
+	(*p)++;
+	**p = *c++;
+	(*p)++;
+	**p = *c++;
+	(*p)++;
+	**p = *c++;
+	(*p)++;
+	**p = *c++;
+	(*p)++;
+}
 
 static void jo_writeBits(jo_bits_t *b, int value, int count)
 {
@@ -80,7 +115,7 @@ static void jo_writeBits(jo_bits_t *b, int value, int count)
 	b->buf |= value << (24 - b->cnt);
 	while (b->cnt >= 8) {
 		unsigned char c = (b->buf >> 16) & 255;
-		putc(c, b->fp);
+		put1b(c, b->p);
 		b->buf <<= 8;
 		b->cnt -= 8;
 	}
@@ -196,34 +231,35 @@ static int jo_processDU(jo_bits_t *bits, float A[64], const unsigned char htdc[9
 	return Q[0];
 }
 
-void jo_write_mpeg(FILE *fp, const unsigned char *rgbx, int width, int height, int fps)
+int encode_mpeg(unsigned char *mem, const unsigned char *rgbx, int width, int height, int fps)
 {
+	unsigned char *smem = mem;
 	int lastDCY = 128, lastDCCR = 128, lastDCCB = 128;
-	jo_bits_t bits = {fp};
+	jo_bits_t bits = {&mem};
 
 	// Sequence Header
-	fwrite("\x00\x00\x01\xB3", 4, 1, fp);
+	put4b("\x00\x00\x01\xB3", &mem);
 	// 12 bits for width, height
-	putc((width>>4)&0xFF, fp);
-	putc(((width&0xF)<<4) | ((height>>8) & 0xF), fp);
-	putc(height & 0xFF, fp);
+	put1b((width>>4)&0xFF, &mem);
+	put1b(((width&0xF)<<4) | ((height>>8) & 0xF), &mem);
+	put1b(height & 0xFF, &mem);
 	// aspect ratio, framerate
 	if (fps <= 24) {
-		putc(0x12, fp);
+		put1b(0x12, &mem);
 	} else if (fps <= 25) {
-		putc(0x13, fp);
+		put1b(0x13, &mem);
 	} else if (fps <= 30) {
-		putc(0x15, fp);
+		put1b(0x15, &mem);
 	} else if (fps <= 50) {
-		putc(0x16, fp);
+		put1b(0x16, &mem);
 	} else {
-		putc(0x18, fp);        // 60fps
+		put1b(0x18, &mem);	// 60fps
 	}
-	fwrite("\xFF\xFF\xE0\xA0", 4, 1, fp);
+	put4b("\xFF\xFF\xE0\xA0", &mem);
 
-	fwrite("\x00\x00\x01\xB8\x80\x08\x00\x40", 8, 1, fp); // GOP header
-	fwrite("\x00\x00\x01\x00\x00\x0C\x00\x00", 8, 1, fp); // PIC header
-	fwrite("\x00\x00\x01\x01", 4, 1, fp); // Slice header
+	put8b("\x00\x00\x01\xB8\x80\x08\x00\x40", &mem); // GOP header
+	put8b("\x00\x00\x01\x00\x00\x0C\x00\x00", &mem); // PIC header
+	put4b("\x00\x00\x01\x01", &mem); // Slice header
 	jo_writeBits(&bits, 0x10, 6);
 
 	for (int vblock=0; vblock<(height+15)/16; vblock++) {
@@ -267,7 +303,18 @@ void jo_write_mpeg(FILE *fp, const unsigned char *rgbx, int width, int height, i
 		}
 	}
 	jo_writeBits(&bits, 0, 7);
-	fwrite("\x00\x00\x01\xb7", 4, 1, fp); // End of Sequence
+	put4b("\x00\x00\x01\xb7", &mem); // End of Sequence
+	return mem-smem;
+}
+
+#include <stdlib.h>
+void jo_write_mpeg(FILE *fp, const unsigned char *rgbx, int width, int height, int fps)
+{
+	unsigned char *mem = malloc(width*height*3);
+	//unsigned char *mem = calloc(1, width*height*3);
+	int s = encode_mpeg(mem, rgbx, width, height, fps);
+	fwrite(mem, s, 1, fp);
+	free(mem);
 }
 #endif
 
