@@ -60,11 +60,8 @@ typedef struct {
 	int buf, cnt;
 } jo_bits_t;
 
-// http://esr.ibiblio.org/?p=5095
 //#include <stdint.h>
 //typedef short	uint4_t;
-//#define IS_BIG_ENDIAN (*(uint16_t *)"\0\xff" < 0x100)
-//#define put4b(p, m)	{ *((uint4_t*)p) = *((uint4_t*)s); p += 4; }
 inline void put1b(unsigned char c, unsigned char **p)
 {
 	**p = c;
@@ -310,7 +307,7 @@ int encode_mpeg(unsigned char *mem, const unsigned char *rgbx, int width, int he
 #include <stdlib.h>
 void jo_write_mpeg(FILE *fp, const unsigned char *rgbx, int width, int height, int fps)
 {
-	unsigned char *mem = malloc(width*height*3);
+	unsigned char *mem = (unsigned char *)malloc(width*height*3);
 	//unsigned char *mem = calloc(1, width*height*3);
 	int s = encode_mpeg(mem, rgbx, width, height, fps);
 	fwrite(mem, s, 1, fp);
